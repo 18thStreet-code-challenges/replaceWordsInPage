@@ -1,0 +1,20 @@
+.title {
+    border-bottom-color: rgb(170, 170, 170);
+    border-bottom-style: solid;
+    border-bottom-width: 1.11111px;
+    font-family: 'Linux Libertine', Georgia, Times, serif;
+    size: 28.8px;
+    margin-bottom: 7.2px;
+    color: rgb(0, 0, 0);
+}
+
+.subTitle {
+    font-family: Serif;
+    font-size: 12.88px;
+}
+
+p {
+    color: rgb(37, 37, 37);
+    font-family: sans-serif;
+    font-size: 14px;
+}
