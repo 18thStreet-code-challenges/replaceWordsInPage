@@ -4,34 +4,39 @@ $(document).ready(function () {
         wordHash,
         maxWords = 25;
 
-    searchListModule.getList().complete(function () {
-        //console.log('1 complete');
-        excludedWords = searchListModule.getWords();
+    $.when($.Deferred(getArticle), $.Deferred(getFrequentWords)).then(function() {
+        //console.log("both are done!");
+        excludedWords = frequentWordsModule.getWords();
         //console.log('excludedWords = ', excludedWords);
-        articlePageModule.getArticle().complete(function() {
-            //console.log('2 complete');
-            paragraphs = articlePageModule.getParagraphs();
-            wordHash = wordCountModule.tally(paragraphs, excludedWords);
-            reduceWordsModule.wordFilter(wordHash, maxWords);
-            reduceWordsModule.substituteWordsInParagraphs(paragraphs);
-            reduceWordsModule.modifyPage('#container');
-        });
+        paragraphs = articlePageModule.getParagraphs();
+        wordHash = wordCountModule.tally(paragraphs, excludedWords);
+        reduceWordsModule.wordFilter(wordHash, maxWords);
+        reduceWordsModule.substituteWordsInParagraphs(paragraphs);
+        reduceWordsModule.modifyPage('#container');
     });
 });
 
-// check out later
-// https://gist.github.com/sergio-fry/3917217
+function getFrequentWords(deferred) {
+    frequentWordsModule.getList().complete(function() {
+        //console.log('1 complete');
+        deferred.resolve();
+    });
+}
 
-var searchListModule = (function () {
+function getArticle(deferred) {
+    articlePageModule.getArticle().complete(function() {
+        //console.log('2 complete');
+        deferred.resolve();
+    });
+}
+
+var frequentWordsModule = (function () {
     var words = [];
 
     function getList() {
         return $.getJSON(
             "https://en.wikipedia.org/w/api.php?action=parse&format=json&callback=?",
-            {
-                page: "Most common words in English",
-                prop: "text"
-            }
+            {page: "Most common words in English", prop: "text"}
         )
         .done(wikiWordsCallback)
         .fail(function () {
@@ -66,8 +71,7 @@ var articlePageModule = (function () {
     function getArticle() {
         return $.getJSON(
             'https://en.wikipedia.org/w/api.php?action=parse&format=json&callback=?',
-            {page: 'Programming language', prop:'text', uselang:'en'}
-
+            {page: 'Programming language', prop: 'text', uselang: 'en'}
         )
             .done(wikiArticleCallback)
             .fail(function () {
@@ -130,12 +134,12 @@ var wordCountModule = (function() {
                 if (token != sanitizedToken) {
                     //console.log('word [' + token + '] was sanitized to [' + sanitizedToken + ']');
                 }
-                if (!(sanitizedToken in wordHash)) {
-                    //console.log('add new');
-                    wordHash[sanitizedToken] = 1;
-                } else {
+                if (sanitizedToken in wordHash) {
                     //console.log('add existing');
                     wordHash[sanitizedToken] += 1;
+                } else {
+                    //console.log('add new');
+                    wordHash[sanitizedToken] = 1;
                 }
             });
         });
@@ -174,7 +178,7 @@ var reduceWordsModule = (function() {
                 wordArray.push({'token': key, 'count': wordHash[key]});
             }
         }
-        console.log('wordArray = ' , wordArray);
+        //console.log('wordArray = ' , wordArray);
         wordArray.sort(function(word1, word2) {
             return word2.count - word1.count;
         });
