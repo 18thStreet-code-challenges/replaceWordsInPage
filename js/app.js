@@ -45,7 +45,6 @@ var searchListModule = (function () {
 
         words = $.map(tokens, function (record) {
             var token = $(record).text();
-
             return token ? token : null;
         });
         //console.log('words = ', words);
@@ -60,8 +59,6 @@ var searchListModule = (function () {
         getWords: getWords
     };
 })();
-
-// https://en.wikipedia.org/w/index.php?title=Programming_language&oldid=707978481
 
 var articlePageModule = (function () {
     var paragraphs = [];
