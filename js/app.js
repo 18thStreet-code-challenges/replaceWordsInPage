@@ -1,36 +1,59 @@
+var FrequentWordsModule,
+    ArticlePageModule,
+    WordCountModule,
+    ReduceWordsModule,
+    TokenRestrictionsModule;
+
 $(document).ready(function () {
     var excludedWords,
         paragraphs,
         wordHash,
-        maxWords = 25;
+        maxWords = 25,
+        paragraphsInsertSelector = '#container',
+        wikiWordPredicates = [
+            function (token) {
+                // Reject particular words
+                return $.inArray(token.toLowerCase(), ['are', 'is', 'where', 'was']) == -1;
+            },
+            function (token) {
+                return token.length > 0;         // Reject empty strings
+            },
+            function (token) {
+                return isNaN(parseInt(token));   // reject integers
+            },
+            function (token) {
+                return token.length > 1;         // reject single letters
+            }
+        ];
 
-    $.when($.Deferred(getArticle), $.Deferred(getFrequentWords)).then(function() {
+    function getFrequentWords(deferred) {
+        FrequentWordsModule.getList().complete(function () {
+            //console.log('1 complete');
+            deferred.resolve();
+        });
+    }
+
+    function getArticle(deferred) {
+        ArticlePageModule.getArticle().complete(function () {
+            //console.log('2 complete');
+            deferred.resolve();
+        });
+    }
+
+    // getArticle() and getFrequentWords() will run in parallel
+    $.when($.Deferred(getArticle), $.Deferred(getFrequentWords)).then(function () {
         //console.log("both are done!");
-        excludedWords = frequentWordsModule.getWords();
+        excludedWords = FrequentWordsModule.getWords();
         //console.log('excludedWords = ', excludedWords);
-        paragraphs = articlePageModule.getParagraphs();
-        wordHash = wordCountModule.tally(paragraphs, excludedWords);
-        reduceWordsModule.wordFilter(wordHash, maxWords);
-        reduceWordsModule.substituteWordsInParagraphs(paragraphs);
-        reduceWordsModule.modifyPage('#container');
+        paragraphs = ArticlePageModule.getParagraphs();
+        wordHash = WordCountModule.tally(paragraphs, excludedWords, wikiWordPredicates);
+        ReduceWordsModule.wordFilter(wordHash, maxWords);
+        ReduceWordsModule.substituteWordsInParagraphs(paragraphs);
+        ReduceWordsModule.modifyPage(paragraphsInsertSelector);
     });
 });
 
-function getFrequentWords(deferred) {
-    frequentWordsModule.getList().complete(function() {
-        //console.log('1 complete');
-        deferred.resolve();
-    });
-}
-
-function getArticle(deferred) {
-    articlePageModule.getArticle().complete(function() {
-        //console.log('2 complete');
-        deferred.resolve();
-    });
-}
-
-var frequentWordsModule = (function () {
+FrequentWordsModule = (function () {
     var words = [];
 
     function getList() {
@@ -38,10 +61,10 @@ var frequentWordsModule = (function () {
             "https://en.wikipedia.org/w/api.php?action=parse&format=json&callback=?",
             {page: "Most common words in English", prop: "text"}
         )
-        .done(wikiWordsCallback)
-        .fail(function () {
-            console.log('failed to get Wikipedia word list');
-        });
+            .done(wikiWordsCallback)
+            .fail(function () {
+                console.log('failed to get Wikipedia word list');
+            });
     }
 
     function wikiWordsCallback(data) {
@@ -65,32 +88,28 @@ var frequentWordsModule = (function () {
     };
 })();
 
-var articlePageModule = (function () {
+ArticlePageModule = (function () {
     var paragraphs = [];
 
-    function getArticle() {
+    function getArticle(predicates) {
         return $.getJSON(
             'https://en.wikipedia.org/w/api.php?action=parse&format=json&callback=?',
             {page: 'Programming language', prop: 'text', uselang: 'en'}
         )
-            .done(wikiArticleCallback)
+            .done(function(data) {
+                wikiArticleCallback(data, predicates);
+            })
             .fail(function () {
                 console.log('failed to get Wikipedia article');
             });
     }
 
-    function wikiArticleCallback(data) {
+    function wikiArticleCallback(data, predicates) {
         //console.log('article data = ', data);
         var wrappedContent = $('<div>' + data.parse.text['*'] + '</div>');
-        paragraphs = $.map($(wrappedContent).find("p"), function(record) {
-            var token = $(record).text().trim(),
-                okToken = true,
-                i;
-
-            for (i = 0; i < frequentWordPredicates.length; i++) {
-                okToken = okToken && frequentWordPredicates[i](token);
-            }
-            return okToken ? token : null;
+        paragraphs = $.map($(wrappedContent).find("p"), function (record) {
+            var line = $(record).text().trim();
+            return line ? line : null;
         });
     }
 
@@ -98,35 +117,26 @@ var articlePageModule = (function () {
         return paragraphs;
     }
 
-    var frequentWordPredicates = [
-        function (token) {
-            return $.inArray(token.toLowerCase(), ['are', 'is', 'where', 'was']) == -1;
-        }
-    ];
-
     return {
         getArticle: getArticle,
         getParagraphs: getParagraphs
     };
 })();
 
-var wordCountModule = (function() {
+WordCountModule = (function () {
     var wordHash = {};
-    function tally(paragraphs, excludedWords) {
-        wikiWordPredicates.push(function(token) {
+
+    function tally(paragraphs, excludedWords, predicates) {
+        predicates.push(function (token) {
             return $.inArray(token.toLowerCase(), excludedWords) == -1;
         });
-        $.each(paragraphs, function(idx, paragraph) {
+        $.each(paragraphs, function (idx, paragraph) {
             var words = paragraph.split(' ');
-            $.each(words, function(jdx, word) {
+            $.each(words, function (jdx, word) {
                 var token = word.trim(),
-                    okToken = true,
-                    i;
+                    sanitizedToken = token.replace(/[^a-zA-Z-_]/g, ''),
+                    okToken = TokenRestrictionsModule.areRequirementsMet(token, predicates);
 
-                var sanitizedToken = token.replace(/[^a-zA-Z-_]/g, '');
-                for (i = 0; i < wikiWordPredicates.length; i++) {
-                    okToken = okToken && wikiWordPredicates[i](sanitizedToken);
-                }
                 if (!okToken) {
                     // console.log('[' + sanitizedToken + '] is not an ok token');
                     return true;
@@ -147,25 +157,12 @@ var wordCountModule = (function() {
         return wordHash;
     }
 
-    var wikiWordPredicates = [
-        function (token) {
-            return token.length > 0;
-        },
-        function (token) {
-            //console.log('token is [' + token + ']; isNaN(parseInt(token) = ' + isNaN(parseInt(token)));
-            return isNaN(parseInt(token));
-        },
-        function (token) {
-            return token.length > 1;
-        }
-    ];
-
     return {
         tally: tally
     }
 })();
 
-var reduceWordsModule = (function() {
+ReduceWordsModule = (function () {
     var wordArray = [],
         newWordHash = {},
         i,
@@ -179,7 +176,7 @@ var reduceWordsModule = (function() {
             }
         }
         //console.log('wordArray = ' , wordArray);
-        wordArray.sort(function(word1, word2) {
+        wordArray.sort(function (word1, word2) {
             return word2.count - word1.count;
         });
         //console.log('wordArray after sorting = ' , wordArray);
@@ -195,11 +192,12 @@ var reduceWordsModule = (function() {
         var key,
             workingParagraph;
 
-        $.each(paragraphs, function(idx, paragraph) {
+        $.each(paragraphs, function (idx, paragraph) {
             workingParagraph = paragraph;
             for (key in newWordHash) {
                 if (newWordHash.hasOwnProperty(key)) {
-                    workingParagraph = workingParagraph.replace(key, '' + newWordHash[key]);
+                    var re = new RegExp('\\b' + key + '\\b','gi');
+                    workingParagraph = workingParagraph.replace(re, '' + newWordHash[key]);
                 }
             }
             newParagraphs.push(workingParagraph);
@@ -208,7 +206,7 @@ var reduceWordsModule = (function() {
     }
 
     function modifyPage(selector) {
-        $.each(newParagraphs, function(idx, paragraph) {
+        $.each(newParagraphs, function (idx, paragraph) {
             $(selector).append($('<p></p>').html(paragraph));
         });
     }
@@ -217,6 +215,24 @@ var reduceWordsModule = (function() {
         wordFilter: wordFilter,
         substituteWordsInParagraphs: substituteWordsInParagraphs,
         modifyPage: modifyPage
+    };
+
+})();
+
+TokenRestrictionsModule = (function () {
+    function areRequirementsMet(token, predicates) {
+        var okToken = true,
+            i;
+
+        for (i = 0; i < predicates.length; i++) {
+            okToken = okToken && predicates[i](token);
+        }
+
+        return okToken;
+    }
+
+    return {
+        areRequirementsMet: areRequirementsMet
     };
 
 })();

@@ -1,15 +1,21 @@
+@font-face {
+    font-family: Linux Libertine;
+    src: url(LinLibertine_DR.woff) format('woff');
+}
+
 .title {
     border-bottom-color: rgb(170, 170, 170);
     border-bottom-style: solid;
     border-bottom-width: 1.11111px;
-    font-family: 'Linux Libertine', Georgia, Times, serif;
+    padding-bottom: 5px;
+    font-family: Linux Libertine;
     font-size: 28.8px;
     margin-bottom: 7.2px;
     color: rgb(0, 0, 0);
 }
 
 .subTitle {
-    font-family: Serif;
+    font-family: sans-serif;
     font-size: 12.88px;
 }
 
@@ -17,4 +23,5 @@ p {
     color: rgb(37, 37, 37);
     font-family: sans-serif;
     font-size: 14px;
+    line-height: 24.8889px
 }
