@@ -2,7 +2,7 @@ var FrequentWordsModule,
     ArticlePageModule,
     WordCountModule,
     ReduceWordsModule,
-    TokenRestrictionsModule;
+    UtilsModule;
 
 $(document).ready(function () {
     var excludedWords,
@@ -10,7 +10,7 @@ $(document).ready(function () {
         wordHash,
         maxWords = 25,
         paragraphsInsertSelector = '#container',
-        wikiWordPredicates = [
+        wikiWordPredicates = [                   // Word restrictions expressed as rules
             function (token) {
                 // Reject particular words
                 return $.inArray(token.toLowerCase(), ['are', 'is', 'where', 'was']) == -1;
@@ -28,23 +28,19 @@ $(document).ready(function () {
 
     function getFrequentWords(deferred) {
         FrequentWordsModule.getList().complete(function () {
-            //console.log('1 complete');
             deferred.resolve();
         });
     }
 
     function getArticle(deferred) {
         ArticlePageModule.getArticle().complete(function () {
-            //console.log('2 complete');
             deferred.resolve();
         });
     }
 
     // getArticle() and getFrequentWords() will run in parallel
     $.when($.Deferred(getArticle), $.Deferred(getFrequentWords)).then(function () {
-        //console.log("both are done!");
         excludedWords = FrequentWordsModule.getWords();
-        //console.log('excludedWords = ', excludedWords);
         paragraphs = ArticlePageModule.getParagraphs();
         wordHash = WordCountModule.tally(paragraphs, excludedWords, wikiWordPredicates);
         ReduceWordsModule.wordFilter(wordHash, maxWords);
@@ -63,19 +59,24 @@ FrequentWordsModule = (function () {
         )
             .done(wikiWordsCallback)
             .fail(function () {
-                console.log('failed to get Wikipedia word list');
+                throw 'failed to get Wikipedia word list';
             });
     }
 
     function wikiWordsCallback(data) {
-        var $content = $(data.parse.text['*']),
-            tokens = $content.find('.wikitable tr td:nth-of-type(2)');
+        var $content,
+            tokens;
+
+        $content = $(UtilsModule.parseWikiData(data));
+
+        tokens = $content.find('.wikitable tr td:nth-of-type(2)');
 
         words = $.map(tokens, function (record) {
             var token = $(record).text();
             return token ? token : null;
         });
-        //console.log('words = ', words);
+
+        data = null;     // won't need any more
     }
 
     function getWords() {
@@ -91,24 +92,29 @@ FrequentWordsModule = (function () {
 ArticlePageModule = (function () {
     var paragraphs = [];
 
-    function getArticle(predicates) {
+    function getArticle() {
         return $.getJSON(
             'https://en.wikipedia.org/w/api.php?action=parse&format=json&callback=?',
             {page: 'Programming language', prop: 'text', uselang: 'en'}
         )
-            .done(function(data) {
-                wikiArticleCallback(data, predicates);
+            .done(function (data) {
+                wikiArticleCallback(data);
+                data = null;     // won't need any more
             })
             .fail(function () {
-                console.log('failed to get Wikipedia article');
+                throw 'failed to get Wikipedia article';
             });
     }
 
-    function wikiArticleCallback(data, predicates) {
-        //console.log('article data = ', data);
-        var wrappedContent = $('<div>' + data.parse.text['*'] + '</div>');
-        paragraphs = $.map($(wrappedContent).find("p"), function (record) {
-            var line = $(record).text().trim();
+    function wikiArticleCallback(data) {
+        var $wrappedContent = $('<div>' + UtilsModule.parseWikiData(data) + '</div>')
+
+        paragraphs = $.map($wrappedContent.find("p"), function (record) {
+
+            // Requirements showed that linked items must show as links in the output.
+            // Add custom syntax for marking off an text sequence as a link.  Will undo later.
+            var line = $(record).html().replace(/(<a.*?>)(.*?)(<\/a>)/gi, "[lInK]$2[eNdLiNk]");
+
             return line ? line : null;
         });
     }
@@ -135,25 +141,22 @@ WordCountModule = (function () {
             $.each(words, function (jdx, word) {
                 var token = word.trim(),
                     sanitizedToken = token.replace(/[^a-zA-Z-_]/g, ''),
-                    okToken = TokenRestrictionsModule.areRequirementsMet(token, predicates);
+                    okToken = UtilsModule.isAllowable(token, predicates);
 
                 if (!okToken) {
-                    // console.log('[' + sanitizedToken + '] is not an ok token');
+                    //Disallowed word, skip this word
                     return true;
                 }
-                if (token != sanitizedToken) {
-                    //console.log('word [' + token + '] was sanitized to [' + sanitizedToken + ']');
-                }
                 if (sanitizedToken in wordHash) {
-                    //console.log('add existing');
                     wordHash[sanitizedToken] += 1;
                 } else {
-                    //console.log('add new');
                     wordHash[sanitizedToken] = 1;
                 }
             });
         });
-        //console.log(wordHash);
+
+        excludedWords = null;      // won't need any more
+
         return wordHash;
     }
 
@@ -170,45 +173,61 @@ ReduceWordsModule = (function () {
         newParagraphs = [];
 
     function wordFilter(wordHash, maxWords) {
+        // Convert hashmap to temporary array of objects for sorting
         for (key in wordHash) {
             if (wordHash.hasOwnProperty(key)) {
                 wordArray.push({'token': key, 'count': wordHash[key]});
             }
         }
-        //console.log('wordArray = ' , wordArray);
+        // Sort objects descending
         wordArray.sort(function (word1, word2) {
             return word2.count - word1.count;
         });
-        //console.log('wordArray after sorting = ' , wordArray);
 
+        // Reconvert back to hashmap, but only with top maxCount items
         maxCount = wordArray.length < maxWords ? wordArray.length : maxWords;
         for (i = 0; i < maxCount; i++) {
             newWordHash[wordArray[i].token] = wordArray[i].count;
         }
-        //console.log('newWordHash is ', newWordHash);
+
+        wordHash = null;     // Won't need any more
     }
 
     function substituteWordsInParagraphs(paragraphs) {
         var key,
-            workingParagraph;
+            workingParagraph,
+            title = $('.title').html();
 
         $.each(paragraphs, function (idx, paragraph) {
+
             workingParagraph = paragraph;
+
             for (key in newWordHash) {
                 if (newWordHash.hasOwnProperty(key)) {
-                    var re = new RegExp('\\b' + key + '\\b','gi');
+                    var re = new RegExp('\\b' + key + '\\b', 'gi');  // whole words only
                     workingParagraph = workingParagraph.replace(re, '' + newWordHash[key]);
+
+                    // Fix the title while we're at it.
+                    title = title.replace(re, newWordHash[key]);
                 }
             }
             newParagraphs.push(workingParagraph);
+            $('.title').html(title);
         });
-        //console.log('newParagraphs are: ', newParagraphs);
+
+        paragraphs = null;   // won't need any more
+        newWordHash = null;  // won't need any more
     }
 
     function modifyPage(selector) {
         $.each(newParagraphs, function (idx, paragraph) {
-            $(selector).append($('<p></p>').html(paragraph));
+
+            // Undo our custom link markers and with real html links
+            var line = paragraph.replace(/(\[lInK])(.*?)(\[eNdLiNk])/g, "<a href='#'>$2</a>");
+            $(selector).append($('<p></p>').html(line));
         });
+
+        newParagraphs = null;      // won't need any more
     }
 
     return {
@@ -219,20 +238,28 @@ ReduceWordsModule = (function () {
 
 })();
 
-TokenRestrictionsModule = (function () {
-    function areRequirementsMet(token, predicates) {
+UtilsModule = (function () {
+
+    // Returns true if all tests in the predicates array of functions pass
+    function isAllowable(token, predicates) {
         var okToken = true,
             i;
 
         for (i = 0; i < predicates.length; i++) {
             okToken = okToken && predicates[i](token);
         }
-
         return okToken;
     }
 
+    // Get to the data we want, and eliminate the image links (because failed attempts to
+    // retrieve the images fill the console with ugly errors)
+    function parseWikiData(data) {
+        return data.parse.text['*'].replace(/<img\b[^>]*>/ig, '');
+    }
+
     return {
-        areRequirementsMet: areRequirementsMet
+        isAllowable: isAllowable,
+        parseWikiData: parseWikiData
     };
 
 })();
