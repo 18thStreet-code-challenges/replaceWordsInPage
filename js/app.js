@@ -4,50 +4,6 @@ var FrequentWordsModule,
     ReduceWordsModule,
     UtilsModule;
 
-$(document).ready(function () {
-    var excludedWords,
-        paragraphs,
-        wordHash,
-        maxWords = 25,
-        paragraphsInsertSelector = '#container',
-        wikiWordPredicates = [                   // Word restrictions expressed as rules
-            function (token) {
-                // Reject particular words
-                return $.inArray(token.toLowerCase(), ['are', 'is', 'where', 'was']) == -1;
-            },
-            function (token) {
-                return token.length > 0;         // Reject empty strings
-            },
-            function (token) {
-                return isNaN(parseInt(token));   // reject integers
-            },
-            function (token) {
-                return token.length > 1;         // reject single letters
-            }
-        ];
-
-    function getFrequentWords(deferred) {
-        FrequentWordsModule.getList().complete(function () {
-            deferred.resolve();
-        });
-    }
-
-    function getArticle(deferred) {
-        ArticlePageModule.getArticle().complete(function () {
-            deferred.resolve();
-        });
-    }
-
-    // getArticle() and getFrequentWords() will run in parallel
-    $.when($.Deferred(getArticle), $.Deferred(getFrequentWords)).then(function () {
-        excludedWords = FrequentWordsModule.getWords();
-        paragraphs = ArticlePageModule.getParagraphs();
-        wordHash = WordCountModule.tally(paragraphs, excludedWords, wikiWordPredicates);
-        ReduceWordsModule.wordFilter(wordHash, maxWords);
-        ReduceWordsModule.substituteWordsInParagraphs(paragraphs);
-        ReduceWordsModule.modifyPage(paragraphsInsertSelector);
-    });
-});
 
 FrequentWordsModule = (function () {
     var words = [];
@@ -263,3 +219,48 @@ UtilsModule = (function () {
     };
 
 })();
+
+$(document).ready(function () {
+    var excludedWords,
+        paragraphs,
+        wordHash,
+        maxWords = 25,
+        paragraphsInsertSelector = '#container',
+        wikiWordPredicates = [                   // Word restrictions expressed as rules
+            function (token) {
+                // Reject particular words
+                return $.inArray(token.toLowerCase(), ['are', 'is', 'where', 'was']) == -1;
+            },
+            function (token) {
+                return token.length > 0;         // Reject empty strings
+            },
+            function (token) {
+                return isNaN(parseInt(token));   // reject integers
+            },
+            function (token) {
+                return token.length > 1;         // reject single letters
+            }
+        ];
+
+    function getFrequentWords(deferred) {
+        FrequentWordsModule.getList().complete(function () {
+            deferred.resolve();
+        });
+    }
+
+    function getArticle(deferred) {
+        ArticlePageModule.getArticle().complete(function () {
+            deferred.resolve();
+        });
+    }
+
+    // getArticle() and getFrequentWords() will run in parallel
+    $.when($.Deferred(getArticle), $.Deferred(getFrequentWords)).then(function () {
+        excludedWords = FrequentWordsModule.getWords();
+        paragraphs = ArticlePageModule.getParagraphs();
+        wordHash = WordCountModule.tally(paragraphs, excludedWords, wikiWordPredicates);
+        ReduceWordsModule.wordFilter(wordHash, maxWords);
+        ReduceWordsModule.substituteWordsInParagraphs(paragraphs);
+        ReduceWordsModule.modifyPage(paragraphsInsertSelector);
+    });
+});
