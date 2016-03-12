@@ -9,11 +9,8 @@ This is a coding assignment I supplied for an employer.  It demonstrates:
 * CSS selectors
 * jQuery coding
 
-##Assignment Instructions
 
-The purpose of this test is to evaluate your technical abilities in a few aspects of software engineering. It allows common grounds for discussion in the interview that takes place after you complete the test. The test is a home test and you are encouraged to use any resource at your disposal ­ online or consulting friends, etc. You will be asked to explain your solution in the interview, emphasizing on correctness, design and coding decisions. Please submit your final code to a http://jsfiddle.net/ link.
-
-###Objective:
+###Assignment Objective:
 
 To create an algorithm written in JavaScript that replaces the top 25 most common words based on their
 frequency with the their count inline. Your code should be pasteable and runnable in the browser console.
@@ -30,6 +27,6 @@ the source code https://en.wikipedia.org/wiki/Most_common_words_in_English
 
 ###Example:
 
-1. Open Chrome and navigate to Open the developer tools in chrome and paste in your JavaScript
+1. Open Chrome and navigate to your html file on disk.
 2. The page should update to look like the image below. It is okay if your counts are off by a few.
 ![Smaller icon](http://gregsandell.com/misc/replaceWordsInPage.png "Title here")
