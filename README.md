@@ -6,6 +6,8 @@ This is a coding assignment I supplied for an employer.  It demonstrates:
 * Sorting
 * Replacing text in an HTML page
 * Definition of rules for counting words
+* The Module pattern
+* Promises
 * CSS selectors
 * jQuery coding
 
