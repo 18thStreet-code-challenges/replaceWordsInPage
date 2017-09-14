@@ -11,6 +11,7 @@ This is a coding assignment I supplied for an employer.  It demonstrates:
 * CSS selectors
 * jQuery coding
 
+The solution can also be found at [this jsFiddle](https://jsfiddle.net/gregsandell/u9c7074n/).
 
 ###Assignment Objective:
 
